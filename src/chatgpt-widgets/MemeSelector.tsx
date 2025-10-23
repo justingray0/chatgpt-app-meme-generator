@@ -4,8 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '../hooks/use-toast';
-// import { useOpenAiGlobal } from '../hooks/use-openai-global';
-// import { useWidgetState } from '../hooks/use-widget-state';
+import { useOpenAiGlobal } from '@/hooks';
+import { useWidgetState } from '@/hooks';
 import { useIsMobile } from '../hooks/use-mobile';
 
 interface Meme {
@@ -30,8 +30,8 @@ const MemeSelector: React.FC<MemeSelectorProps> = ({ onMemeSelect }) => {
   const [error, setError] = useState<string | null>(null);
   const [displayMode, setDisplayMode] = useState<'inline' | 'pip' | 'fullscreen'>('inline');
   const { toast } = useToast();
-  // const { callTool } = useOpenAiGlobal();
-  // const [widgetState, setWidgetState] = useWidgetState({ selectedMemeId: null });
+  const callTool = useOpenAiGlobal('callTool');
+  const [widgetState, setWidgetState] = useWidgetState<{ selectedMemeId: string | null }>({ selectedMemeId: null });
   const isMobile = useIsMobile();
 
   useEffect(() => {
@@ -70,38 +70,46 @@ const MemeSelector: React.FC<MemeSelectorProps> = ({ onMemeSelect }) => {
     }
   }, [searchTerm, memes]);
 
-  // useEffect(() => {
-  //   // Restore selected meme from widget state
-  //   if (widgetState.selectedMemeId && memes.length > 0) {
-  //     const meme = memes.find(m => m.id === widgetState.selectedMemeId);
-  //     if (meme) setSelectedMeme(meme);
-  //   }
-  // }, [widgetState.selectedMemeId, memes]);
+  useEffect(() => {
+    // Restore selected meme from widget state
+    if (widgetState?.selectedMemeId && memes.length > 0) {
+      const meme = memes.find(m => m.id === widgetState.selectedMemeId);
+      if (meme) setSelectedMeme(meme);
+    }
+  }, [widgetState?.selectedMemeId, memes]);
 
   const handleMemeSelect = (meme: Meme) => {
     setSelectedMeme(meme);
-    // setWidgetState({ selectedMemeId: meme.id });
+    setWidgetState({ selectedMemeId: meme.id });
     toast({
       title: "Meme Selected",
       description: `Selected "${meme.name}"`,
     });
   };
 
-  const handleGenerateMeme = () => {
-    if (!selectedMeme) return;
+  const handleGenerateMeme = async () => {
+    if (!selectedMeme || !callTool) return;
     
-    // Call the generate_meme tool
-    // callTool('generate_meme', {
-    //   template_id: selectedMeme.id,
-    //   template_name: selectedMeme.name,
-    //   template_url: selectedMeme.url,
-    //   boxes: selectedMeme.box_count
-    // });
-    
-    toast({
-      title: "Generating Meme",
-      description: `Generating meme with "${selectedMeme.name}" template`,
-    });
+    try {
+      // Call the generate_meme tool
+      await callTool('generate_meme', {
+        template_id: selectedMeme.id,
+        template_name: selectedMeme.name,
+        template_url: selectedMeme.url,
+        boxes: selectedMeme.box_count
+      });
+      
+      toast({
+        title: "Generating Meme",
+        description: `Generating meme with "${selectedMeme.name}" template`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to generate meme",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleSelectMeme = (meme: Meme) => {
@@ -155,7 +163,7 @@ const MemeSelector: React.FC<MemeSelectorProps> = ({ onMemeSelect }) => {
               <div className="flex justify-between items-center">
                 <div>
                   <h3 className="font-medium">Selected: {selectedMeme.name}</h3>
-                  <p className="text-sm text-gray-500">Text boxes: {meme.box_count}</p>
+                  <p className="text-sm text-gray-500">Text boxes: {selectedMeme.box_count}</p>
                 </div>
                 <Button onClick={handleGenerateMeme} className="ml-2">
                   Generate Meme
